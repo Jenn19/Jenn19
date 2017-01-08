@@ -1,0 +1,9 @@
+#### Objective
+The goal of this project is to construct an algorithm to predict persons of interest (POIs), or those involved in illegal activities, in the Enron fraud investigation. The Enron dataset contains features such as information on the finances and emails of employees that may be helpful to explore this question. There are 146 members, 18 of whom are classified as POIs. 
+
+The machine learning algorithm that I used was K nearest neighbor. I ended up scaling the features using RobustScaler to improve the performance of the KNN algorithm. The rationale behind feature scaling is to attempt to balance the features so that no one feature will dominate the algorithm. 
+
+The precision score of the KNN algorithm is 36% and recall score is 37%. In simple terms, among those who are classified as a POI by the algorithm, 36% are in fact POIs. Among those who are in fact POIs, the algorithm correctly identified 37% of them .  
+
+#### Tools
+iPython notebook (modules used:sci-kit learn, seaborn, matplotlib)
