@@ -1,0 +1,5 @@
+#### Objective
+This project assessed factors that were significantly associated with survival on the Titanic.
+
+#### Tools 
+iPython notebook (modules used: pandas, numpy, matplotlib, scipy, seaborn)

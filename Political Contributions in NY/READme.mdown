@@ -1,0 +1,6 @@
+#### Objective
+This project will explore the median contribution amount to U.S. presidential candidates in the state of New York. Specifically, I will examine trends of contributions over time and patterns of donations by donors' retirement status and candidates' gender and political affiliation. Further, I will examine trends specifically for Hillary Clinton and Donald Trump, who are the respective Democratic and Republican nominees.
+     
+
+#### Tools
+R (R markdown)

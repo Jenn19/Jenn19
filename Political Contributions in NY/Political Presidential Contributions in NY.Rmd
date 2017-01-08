@@ -1,0 +1,571 @@
+U.S. Presidential Contributions in NY by JY 
+========================================================
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,fig.width = 8, fig.height = 8)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages in this code chunk.
+
+# Parameter "echo"  set to FALSE for this code chunk
+# prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(reshape2)
+library(sqldf)
+library(gridExtra)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+contrib <- read.csv('contrib-NY.csv', stringsAsFactors = F, row.names = NULL)
+colnames(contrib) <- c(colnames(contrib)[-1],NULL)
+
+#gender variable
+contrib$gender <- ifelse(contrib$cand_nm %in% 
+                  c("Clinton, Hillary Rodham","Fiorina, Carly", "Stein, Jill"), 
+                    "Female", "Male")
+
+#party variable
+contrib$party <- ifelse(contrib$cand_nm %in% c("Clinton, Hillary Rodham", 
+                                               "O'Malley, Martin Joseph", 
+                                               "Sanders, Bernard", 
+                                               "Lessig, Lawrence"), "Democrat", 
+                 ifelse(contrib$cand_nm == "Stein, Jill", "Green", 
+                 ifelse(contrib$cand_nm == "Johnson, Gary", "Libertarian",
+                                            "Republican")))
+
+contrib$party <- as.factor(contrib$party)
+
+```
+
+#####This project will explore the median contribution amount to U.S. presidential candidates in the state of New York. Specifically, I will examine trends of contributions over time and patterns of donations by donors' retirement status and candidates' gender and political affiliation. Further, I will examine trends specifically for Hillary Clinton and Donald Trump, who are the respective Democratic and Republican nominees      
+
+#Univariate Analysis
+
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+
+contrib2 <- subset(contrib, contb_receipt_amt > 0)
+summary(contrib2$contb_receipt_amt)
+
+```
+
+Overall, in NY the median contribution to U.S. Presidential candidates 
+is $27, mean is $258, but maximum is 7402000. 
+
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+table(unique(contrib$party))
+
+length(unique(contrib$cand_nm))
+
+summary(contrib$contb_receipt_amt)
+```
+
+The dataset has 4 political parties and 24 U.S. presidential candidates. But some contributions amounts were negative because they were refunded, so we will need to subset dataset to anything > 0
+
+
+
+###gender & political party
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+
+#selecting distinct gender & party
+
+uniquedf <- sqldf("select min(cand_nm) cand_nm, gender, party,
+                          sum(contb_receipt_amt) as sum_amt
+                   from contrib2 
+                   group by cand_nm", row.names = TRUE)
+
+summary(uniquedf$party)
+
+table(uniquedf$party, uniquedf$gender)
+
+univ <- function (x_value, DF) {
+  ggplot(aes_string(x=x_value), data = DF) + 
+    geom_bar(stat = 'count', width = .3) +
+    scale_y_continuous(lim = c(0,30), breaks = seq(0,30,5))
+}
+
+univ ('gender',uniquedf) 
+univ ('party', uniquedf) 
+
+```
+
+The Republican party has the  most candidates and there are more male candidates than their female counterparts. 
+
+
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+
+#Who received the highest number of contributions?
+sort(table(contrib2$cand_nm), decreasing =TRUE)
+
+#taking their last names
+contrib2$last_name <- strsplit(contrib2$cand_nm, ",")
+contrib2$last_name_final <- sapply(contrib2$last_name, function(x)x[1])
+
+ggplot(aes(x=last_name_final), data = contrib2) + geom_bar() + 
+  theme(axis.text.x = element_text(angle=45, size = 12, face = 'bold'))
+
+```
+
+Clinton & Sanders received the highest number of contributions in NY.
+How does this vary over time? 
+
+
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+# months
+contrib2$date2 <- as.Date(contrib2$contb_receipt_dt, format ="%d-%b-%y")
+contrib2$date2 <- format (contrib2$date, "%b-%y")
+
+contrib2$date2 <- ordered (contrib2$date2, levels = c(
+  'Jul-14', 'Aug-14', 'Nov-14', 'Dec-14', 'Jan-15','Feb-15', 'Mar-15', 
+  'Apr-15', 'May-15', 'Jun-15', 'Jul-15', 'Aug-15', 'Sep-15', 'Oct-15', 
+  'Nov-15', 'Dec-15', 'Jan-16', 'Feb-16', 'Mar-16', 'Apr-16', 'May-16', 
+  'Jun-16', 'Jul-16', 'Aug-16'))
+
+ggplot(aes(x=date2), data = subset(contrib2, !is.na(date2))) + geom_bar() 
+
+```
+
+The number of contributions started to increased starting in late 2015. I will come back to this trend over time. 
+
+####Retirement status
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+#retirement status based on occupation information, I'm using this as a proxy for the age of the donors
+
+contrib2$retired <-
+  ifelse(contrib2$contbr_occupation == 'RETIRED', 'Retired', 'Not Retired')
+
+#because someone can contribute multiple amounts, need to de-duplicate 
+
+contrib2 <- subset(contrib2, select= -last_name)
+
+uniqueRetired <- sqldf("select min(contbr_nm) contbr_nm, 
+  cand_nm, gender, party, Retired,
+  sum(contb_receipt_amt) as sum_amt
+  from contrib2
+  group by contbr_nm", row.names = TRUE) 
+
+ggplot(aes(x=retired), data = uniqueRetired) + 
+  geom_bar(stat = 'count', width = .3)
+
+```
+
+Most donors are not retired,i.e., non-retirees make more donations in NY. 
+
+
+
+###Contribution amount
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+ggplot(aes(x=contb_receipt_amt), data = contrib2) +
+ geom_histogram()
+
+```
+
+Because the median and mean are small and the maximum amount is more than 1000x the mean (quite a few outliers), it will be helpful to look ata  density plot after taking the log 10 of the contribution amount
+
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+ggplot(aes(x=contb_receipt_amt), data = contrib2) +
+  geom_density(adjust = 4) + scale_x_log10()
+```
+
+The log 10 of the contribution amount starts to resemble a normal distribution
+
+
+```{r echo=FALSE}
+contrib2$log_amt <- as.numeric(log10(contrib2$contb_receipt_amt))
+
+```
+
+
+# Univariate Section
+
+### What is the structure of your dataset?
+The dataset is in long form, i.e., with multiple contributions per candidate.
+1.There are 24 U.S. presidential candidates in this dataset
+2. I grouped the candidates into 4 major parties: Democratic, Republican, Libertarian and the Green Party
+3. 3 females, 21 males
+4. Most U.S. presidential candidates were Republican males
+5. Median contributed amount is $27, mean is $258, but there are quite a few of outliers
+6. Senator Sanders & Secretary Clinton received the highest number of contributions, both exceeding 100,000 donations
+7. Number of donations started to increase starting Dec 2015. 
+8. Most of the donors are not retired
+
+### What is/are the main feature(s) of interest in your dataset?
+Median contribution amount to U.S. presidential candidates in NY, and specifically to examne trends over time as well as whether contribution amount varies by donors' retirement status, candidates' gender and candidates' political parties. 
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+1. Median contribution amount by candidate, gender, party, donors' retirement status, and over time. In particular, I think time trends will be interesting since that can tell a
+story of how candidates are faring in NY. There is also little information on donors'
+characteristics except for retirement status, which can serve as a proxy for age.
+This can give insight to 
+
+  + I will also look at the Democratic and Republican nominees (Clinton and Trump) 
+
+### Did you create any new variables from existing variables in the dataset?
+Created gender, political party, log10 of contribution amount, retirement status
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+Unusual distribution of contribution amount, so I took the log 10 of this variable
+
+# Bivariate Plots Section
+
+####Analyzing contribution by gender
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+table(contrib$cand_nm, contrib$gender)
+ggplot(aes(x=date2), data = subset(contrib2, !is.na(date2))) + 
+  geom_bar() + facet_grid (gender ~ . ) 
+```
+
+Males received a higher number of contributions than females over time. I will now look at the amount, and not just count.
+
+
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+#disabling scientific notion
+options(scipen=999)
+
+by(contrib$contb_receipt_amt, contrib$cand_nm, median)
+
+t.test(log_amt ~ gender, data = contrib2)
+
+ggplot(aes(x=gender, y = contb_receipt_amt),
+       data = contrib2) + geom_boxplot() + scale_y_log10()
+
+```
+
+Females received more money than males. 
+How does this differ by political party?
+
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+summary(aov(log_amt ~ party, data=contrib2))
+
+ggplot(aes(x=party, y = contb_receipt_amt), 
+       data = contrib2) + geom_boxplot() + scale_y_log10()
+```
+
+Political contributions vary significantly among political affiliation. Among the 4 parties, the Libertarian party has the highest median amount  
+
+
+####How do contributions vary across time?
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+by(contrib2$contb_receipt_amt, contrib2$date2, summary)
+
+Date.Dt <- group_by (contrib2, date2)
+Date.Dt2 <- summarize (Date.Dt, 
+                       mean_amount = mean(contb_receipt_amt),                                                            median_amount = median(contb_receipt_amt), n = n())
+
+Date.Dt2$date2 <- ordered (Date.Dt2$date2, levels = c(
+  'Jul-14', 'Aug-14', 'Nov-14', 'Dec-14', 'Jan-15','Feb-15', 'Mar-15', 
+  'Apr-15', 'May-15', 'Jun-15', 'Jul-15', 'Aug-15', 'Sep-15', 'Oct-15', 
+  'Nov-15', 'Dec-15', 'Jan-16', 'Feb-16', 'Mar-16', 'Apr-16', 'May-16', 
+  'Jun-16', 'Jul-16', 'Aug-16'))
+
+#need group = 1 because x is a character var
+
+grand_median <- median(contrib2$contb_receipt_amt)
+
+ggplot(aes(x=date2, y=median_amount, group = 1), 
+       data = subset(Date.Dt2, !is.na(date2))) + geom_point() + 
+  geom_line() + geom_hline (aes(yintercept = grand_median), linetype = 2)
+
+
+```
+
+There was a peak of contributions in Nov 2014, but contribution amount starts to decrease and plateau starting March 2015. 
+
+
+####Looking at retirement status
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+
+ggplot(aes(x=retired, y = sum_amt), data = uniqueRetired) + geom_boxplot() +  
+ scale_y_log10()
+
+ag.retired.med <- aggregate(uniqueRetired$sum_amt, 
+                        by = list(uniqueRetired$retired), 
+                        FUN=median)
+
+ag.retired.mean <- aggregate(uniqueRetired$sum_amt, 
+                         by = list(uniqueRetired$retired), 
+                         FUN= mean) 
+
+colnames(ag.retired.med) <- c('Retire', 'median_amt')
+colnames(ag.retired.mean) <- c('Retire', 'mean_amt')
+
+ag.retired.mean <- subset(ag.retired.mean, select = -Retire)
+
+ag.retired <- cbind(ag.retired.med, ag.retired.mean)
+
+ret.graph <- function (yvalue) {
+ggplot(aes_string(x='Retire', y = yvalue), data = ag.retired) + 
+  geom_bar(stat = 'identity', width = 0.5) 
+}
+
+ret.graph('median_amt')
+ret.graph('mean_amt')
+
+```
+
+The average amount donated by non-retirees are higher than retirees. However, important to note that there is one outlier that may be skewing the mean upwards. Looking at the median and mean amount, it is clear that the  mean is more affected by the outliers and so I will focus on the median. 
+
+####Focusing on hillary and donald trump because they are the nominees of their respective parties
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+nominees <- subset(contrib2, 
+                   cand_nm %in% c("Clinton, Hillary Rodham", "Trump, Donald J."))
+
+#count of contributions
+ggplot(aes(x=date2), data = subset(nominees, !is.na(date2))) + geom_bar() +
+  facet_grid (cand_nm ~ . ) 
+
+by(nominees$contb_receipt_amt, nominees$cand_nm, summary)
+```
+
+It seems that Donald Trump has a higher median amount contribution but Hillary Clinton has a higher mean - this indicates that there are more outliers in Hillary's contributions, skewing the mean upwards.
+
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+ggplot(aes(x=cand_nm, y =contb_receipt_amt), data = nominees) + 
+  geom_jitter(alpha = .25, shape = 21) + scale_y_log10()
+```
+
+We see there more outliers in donations for Hillary than Trump. The density of Hillary's plot as compared to Trump underscores the higher counts of contributions she received. 
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+Female candidates received significanty higher contributions, on average, than males.T here were also significant differences in contribution amounts to political parties. It seems that the Libertarian party have the highest amount, although there were more outliers for the Democrat and Repubican parties likely because they have more candidates. 
+
+Further, trends of donation to the U.S. presidential race started as early as mid 2014 in NY. The median amount steadily decreased. 
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+Despite the decrease in median amount, Interestingly, the frequency of contributions to canddates increased starting in late 2015. This increase was similarly found among both females and males. Non-retirees generally donated more money than retirees. 
+
+### What was the strongest relationship you found?
+Contribution amounts differ signifcantly between women, party affiliation, and retirement status. 
+
+
+
+# Multivariate Plots Section
+
+####How do retirees and non-retirees' contribution amount differ for each candidate?
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+
+ggplot(aes(x=cand_nm, y = contb_receipt_amt, color=retired), data = nominees) + 
+  geom_jitter(alpha = .25, shape =20) + scale_y_log10() 
+
+```
+
+Most donations to Hillary come from non-retirees, and it seems to be a mix for Trump.
+
+####What about median contribution amount? 
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+
+nominees.retire <- aggregate(nominees$contb_receipt_amt, 
+                             by = list(nominees$cand_nm, nominees$retired), 
+                             FUN = median)
+
+colnames(nominees.retire) <- c('Name', 'Retire', 'Median_amt')
+
+ggplot(aes(x=Name, y =Median_amt, fill = Retire), data = nominees.retire) + 
+  geom_bar(stat='identity', position = position_dodge())
+
+```
+
+Non-retirees had higher median contributions than retirees, and non-retirees donated more to Trump than Clinton. This graph seems to be a bit inconsistent with the previous graph. We'd have to look at the mean
+
+```{r echo=FALSE, fig.width = 6, fig.height = 6}
+nominees.retire.mean <- aggregate(nominees$contb_receipt_amt, 
+                             by = list(nominees$cand_nm, nominees$retired), 
+                             FUN = mean)
+
+colnames(nominees.retire.mean) <- c('Name', 'Retire', 'Mean_amt')
+
+ggplot(aes(x=Name, y =Mean_amt, fill = Retire), data = nominees.retire.mean) + 
+  geom_bar(stat='identity', position = position_dodge())
+```
+
+Looking at the mean contribution it is Hillary whom retirees donated more money to. The outliers for Hillary probably accounted for the previous graph in which retirees' median amount was lower. 
+
+###Trends over time
+
+####Contributions over time by political party
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+
+Date.dt3 <- aggregate(contrib2$contb_receipt_amt, 
+                      by = list(contrib2$date2, contrib2$party),
+                      FUN = median)
+
+colnames(Date.dt3) <- c("Date", "Party", "Median_amt")
+
+Date.dt3$date2 <- ordered (Date.dt3$Date, levels = c(
+  'Jul-14', 'Aug-14', 'Nov-14', 'Dec-14', 'Jan-15', 'Feb-15', 'Mar-15', 
+  'Apr-15', 'May-15', 'Jun-15', 'Jul-15', 'Aug-15', 'Sep-15', 'Oct-15',
+  'Nov-15', 'Dec-15', 'Jan-16', 'Feb-16', 'Mar-16', 'Apr-16', 'May-16',
+  'Jun-16', 'Jul-16', 'Aug-16'))
+
+ggplot(aes(x=date2, y = Median_amt, color = Party, group = Party), 
+       data = Date.dt3) + geom_point(size = 2) + geom_line(size = 1) + 
+  geom_hline(yintercept = grand_median, linetype = 2) + 
+  theme(axis.text.x = element_text(angle = 45, size = 10))                                                            
+
+```
+
+The peak in Nov 14 seems to be driven by donors to the Republican party. There seems to be a variaton in donations over time for all the parties. 
+
+####How do the trends look for the U.S. presidential nominees?
+```{r echo=FALSE, fig.width = 10, fig.height = 10}
+
+nominees.group <- group_by(nominees, cand_nm, date2)
+
+nominees.group2 <- summarize(nominees.group, 
+                            mean_amt = mean(contb_receipt_amt),
+                            median_amt = median(contb_receipt_amt)
+                             )
+
+nominees.group2$date2 <- ordered (nominees.group2$date2, levels = c(
+  'Jul-14', 'Aug-14', 'Nov-14', 'Dec-14', 'Jan-15', 'Feb-15', 
+  'Mar-15', 'Apr-15', 'May-15', 'Jun-15', 'Jul-15', 'Aug-15', 
+  'Sep-15', 'Oct-15', 'Nov-15', 'Dec-15', 'Jan-16', 'Feb-16', 
+  'Mar-16', 'Apr-16', 'May-16', 'Jun-16', 'Jul-16', 'Aug-16'))
+
+ggplot(aes(x=date2, y = median_amt, color=cand_nm, group = cand_nm), 
+       data = nominees.group2) + geom_point() + geom_line() + 
+  scale_color_manual(values=c("blue", "red"))
+
+
+
+```
+
+
+Strikingly, more people had consistently donated to Hillary in NY but the median amount raised by Trump was higher ($171 vs. $50). It is important to point out that I focused on the median and not the mean. If we looked at the mean, Hillary raised more money ($508 vs. $351), but her maximum contribution was over $7 million, which likely reflected an organized donation.  
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+There were some variations in donor contributions to each political party over time. After subsetting the dataset to the eventual nominees, Donald Trump and Hillary Clinton, we see that Donald Trump consistently raised more money than Hillary Clinton in NY, but Clinton had more counts of donations. 
+
+
+
+### Were there any interesting or surprising interactions between features?
+It was surprising that non-retirees gave more money than retirees. I would've imagined that retirees, who are older, tend to be more politically active. Another surprising finding is that Clinton had more donations than Trump but the latter raised a higher median contribution amount.     
+ 
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+
+```{r echo=FALSE}
+
+theme <-  
+  theme(
+    legend.title = element_blank(),
+    plot.title = element_text(size = 14, face = 'bold'), 
+    axis.title.x = element_text(face = 'bold'),
+    axis.title.y = element_text(face = 'bold'),
+    axis.text.x = element_text(size = 12, face = 'bold'),
+    axis.text.y = element_text(size = 12, face = 'bold')
+    ) 
+
+theme1 <-  
+  theme(
+    legend.title = element_blank(),
+    plot.title = element_text(size = 18, face = 'bold'), 
+    axis.title.x = element_text(size = 14, face ='bold'),
+    axis.title.y = element_text(size = 14, face ='bold'),
+    axis.text.x = element_text(size = 12, face = 'bold', angle=45),
+    axis.text.y = element_text(size = 14, face = 'bold'),
+    legend.text = element_text(size = 14)
+    ) 
+
+```
+
+### Plot One
+```{r echo=FALSE, Plot_One, fig.width = 12, fig.height = 8}
+
+ggplot(aes(x=date2, y = Median_amt, color = Party, group = Party), 
+       data = subset(Date.dt3, !is.na(date2))) + geom_point(size = 2) + 
+  geom_line(size = 1) + 
+  ggtitle("Contributions to U.S. political parties over time") + 
+  xlab ("Date") + ylab ("Median Contribution Amount (USD)") + 
+  theme_minimal() + 
+  coord_cartesian(ylim = c(0,3000)) + 
+  theme1 + scale_color_manual(values = c('Blue', 'Green', 'Purple', 'Red'))
+
+```
+
+### Description One
+Contributions to U.S. presidential candidates started early in NY, specifically in mid 2014 and early 2015. There were quite some fluctuations in the median amount contributed, with peaks in Nov 2014, Feb 2015, May 2015, and July 2015, but the trend became steadier starting mid 2015. The Republican party has the most fluctuations, receiving high contribution amounts early but plataued starting in June 2015.  
+
+### Plot Two
+```{r echo=FALSE, Plot_Two, fig.width = 12, fig.height = 8}
+
+plot2 <- ggplot(aes(x=date2, y = median_amt, color=cand_nm, group = cand_nm),
+                data = nominees.group2) + geom_point(size = 2) + 
+  geom_line(size = 1) + scale_color_manual(values=c("blue", "red")) 
+
+plot2.final <- plot2 + theme_bw() + 
+  ggtitle ("Median Amount of Contributions to \n Donald Trump and Hillary Clinton over time") +
+  xlab ('Date') +
+  ylab('Median Contribution Amount(USD)') + theme (legend.position = 'top') + theme
+
+
+plot2A <- ggplot(aes(x=date2), data = subset(nominees, !is.na(date2))) + 
+  geom_bar(fill = 'steelblue', width =.9) + facet_grid (last_name_final ~ .) + 
+  ggtitle('Count of contributions to Donald Trump and Hillary Clinton Over Time') + 
+  ylab ('Count of Contributions') +
+  xlab ('Date') + theme_minimal() + theme(strip.text.y = element_text(
+    size = 12, face='bold')) + theme
+
+grid.arrange(plot2A, plot2.final, ncol = 1)
+```
+
+### Description Two
+I thought it'd be interesting to look at both the count of contributions and median contribution amount for Clinton and Trump, who are the respective nominees for the Democratic and Republican parties. Both candidates also have strong ties to New York. For a state that voted solidly blue, Trump consistently raised more money than Clinton in New York. However, Clinton consistently has the highest count of contributions. This graph suggests that Trump's donors in NY, while fewer in number, consistently donateda higher median amount as compared to Clinton's donors. But, it is important to keep in mind
+that these graphs looked at the median amount and not the mean amount. 
+
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three, fig.width = 8, fig.height = 8}
+
+fig3 <- ggplot(aes(x=last_name_final, y = contb_receipt_amt, color=retired), 
+               data = subset(nominees, !is.na(retired))) + 
+        geom_boxplot() + scale_y_log10() + 
+        ylab('Log 10 Contribution Amount (USD)') +
+        xlab('Candidates') + theme_bw() + 
+        theme (legend.text = element_text (size = 10)) 
+
+fig3A <- ggplot(aes(x=last_name_final, fill=retired), 
+                data = subset(nominees, !is.na(retired))) +
+         geom_bar(stat = 'count', position = position_dodge()) +
+         xlab('Candidates')  +
+         ylab('Count') + theme_bw()
+
+grid.arrange(fig3, fig3A, nrow = 1, 
+             top = 'Contribution Amount to Candidates by Retirement Status')  
+             
+```
+
+### Description Three
+The dataset did not contain a lot of information about the donors, but retirement status, which was gleaned from their occupation information is one available characteristic. The boxplot
+in figure 3 shows that non-retirees donated a higher median amount than retirees.
+It is important to note that for Clinton, there were a few outliers in the higher end,
+which tends to skew the mean upwards. 
+Further, more non-retirees than retirees overwhelmingly supported Clinton. There were similar
+number of contributions from retirees and non-retirees who donated to Trump. 
+------
+
+# Reflection
+
+In NY, The median contribution amount was $27 and the mean is $258 but there were many people who donated more. The median contribution amount varied significantly among the gender and the party of the U.S presidential candidates as well as donors' retirement status. Non-retirees donated more money than retirees. Some donors chose to donate early in the election cycle. New Yorkers consistently donated a higher money to Donald J. Trump although more New Yorkers donated to Hillary Clinton. 
+
+It is important to keep in mind that analyses with all the outliers in the contributed amount makes interpretations difficult. I addressed this by analyzing the median contribution amount, which is less likelier to be affected by outliers than the mean, and I also analyzed the log10 of the amount   
+
+Limitations in these analyses include lack of information about the donors. For example, we do not know the age and gender of the donors. Future analyses may consider creating a geographical map using city and zip code data. Through this, we can see assess the associations between NY neighborhoods and political affiliations (i.e., which neighborhood is left-leaning in this election cycle, etc.). We can also use neighborhood data a proxy for income/SES and analyze the association between SES and median contribution amount. A hypothesis may be Democratic U.S. presidential candidates, specificall Clinton and Sen. Sanders, will remain highly popular in most NY neighborhoods and higher income neighborhoods will donate more. 
+
+

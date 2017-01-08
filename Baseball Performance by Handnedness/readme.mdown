@@ -1,0 +1,5 @@
+#### Objective
+This project assessed ~1,000 baseball players' performance by handedness (left-handed, right-handed, ambidextrous). Performance was measured by 1)Home Runs and 2) Batting Averages. These two metrics were depicted by two separate graphs. Left-handed players seems to have, on average, more home runs than right-handed or ambidextrous players. Further, they have similar mean batting averages as ambidextrous players, but higher than right-handed players. In short, compared to right-handed players, left-handed players seems to perform better. 
+
+#### Tools
+R, dimple.js
